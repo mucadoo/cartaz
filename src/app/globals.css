@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-outfit);
+  --font-serif: var(--font-fraunces);
+}
+
+body {
+  min-height: 100vh;
+  color: #f6efe4;
+  background:
+    radial-gradient(900px 420px at 50% -8%, rgba(201, 137, 58, 0.28), transparent 62%),
+    radial-gradient(700px 380px at 100% 0%, rgba(226, 90, 42, 0.14), transparent 55%),
+    #140c09;
+  font-family: var(--font-outfit), sans-serif;
+}
+
+h1,
+h2,
+h3,
+.font-serif {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+button,
+a {
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #e4b15a;
+  outline-offset: 3px;
+}
