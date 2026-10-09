@@ -18,7 +18,7 @@ function request(url: string, init: RequestInit | undefined, fresh: boolean): Pr
     headers: { ...HEADERS, ...(init?.headers as Record<string, string> | undefined) },
     redirect: "follow",
     signal: AbortSignal.timeout(12000),
-    ...(fresh ? { cache: "no-store" as const } : { next: { revalidate: 600 } }),
+    ...(fresh ? { cache: "no-store" as const } : { next: { revalidate: 43200 } }), // twice a day
   });
 }
 

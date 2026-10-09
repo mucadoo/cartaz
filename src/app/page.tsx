@@ -3,7 +3,8 @@ import { initialSelectedDate } from "@/lib/schedule";
 import { loadProgram } from "@/lib/program";
 import { saoPauloToday } from "@/lib/dates";
 
-export const revalidate = 600;
+/** Twice a day. */
+export const revalidate = 43200;
 export const preferredRegion = "gru1";
 export const maxDuration = 60;
 
