@@ -1,5 +1,5 @@
 import { daysInMonth, saoPauloToday, shiftMonth } from "@/lib/dates";
-import { fetchText } from "@/lib/http";
+import { fetchText, withFreshFetch } from "@/lib/http";
 import type { ProgramItem, Session } from "@/lib/types";
 
 const EVENTS_URL = "https://cinemateca.org.br/wp-json/tribe/events/v1/events";
@@ -57,8 +57,7 @@ function windowOf(now: Date): { start: string; end: string } {
   return { start: `${month}-01`, end };
 }
 
-async function fetchPage(url: string): Promise<TribePage | null> {
-  const body = await fetchText(url);
+function parsePage(body: string | null): TribePage | null {
   if (!body) return null;
   try {
     const data = JSON.parse(body) as TribePage;
@@ -67,6 +66,13 @@ async function fetchPage(url: string): Promise<TribePage | null> {
   } catch {
     return null;
   }
+}
+
+async function fetchPage(url: string): Promise<TribePage | null> {
+  const body = await fetchText(url);
+  const parsed = parsePage(body);
+  if (parsed || !body) return parsed;
+  return parsePage(await withFreshFetch(() => fetchText(url)));
 }
 
 export async function loadCinemateca(now = new Date()): Promise<SourceResult> {

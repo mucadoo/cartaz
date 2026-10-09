@@ -4,6 +4,8 @@ import { loadProgram } from "@/lib/program";
 import { saoPauloToday } from "@/lib/dates";
 
 export const revalidate = 600;
+export const preferredRegion = "gru1";
+export const maxDuration = 60;
 
 export default async function Home() {
   const today = saoPauloToday();

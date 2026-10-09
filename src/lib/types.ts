@@ -48,8 +48,13 @@ export type ProgramItem = {
   watchUrl: string | null;
 };
 
+export type VenueWarning = {
+  venue: VenueId;
+  message: string;
+};
+
 export type Program = {
   items: ProgramItem[];
   updatedAt: string;
-  warnings: string[];
+  warnings: VenueWarning[];
 };

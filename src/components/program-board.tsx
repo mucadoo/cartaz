@@ -12,8 +12,10 @@ import {
   shiftMonth,
 } from "@/lib/dates";
 import { screeningsOn } from "@/lib/schedule";
-import type { Availability, Program, ProgramItem, Session, VenueId } from "@/lib/types";
+import type { Availability, Program, ProgramItem, Session, VenueId, VenueWarning } from "@/lib/types";
 import { placeLine, VENUE_LIST, VENUES } from "@/lib/venues";
+import { refreshVenue } from "@/app/refresh-venue";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Filter = "all" | "open";
 type VenueFilter = "all" | VenueId;
@@ -76,10 +78,14 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   const [filter, setFilter] = useState<Filter>("all");
   const [venue, setVenue] = useState<VenueFilter>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [items, setItems] = useState(program.items);
+  const [warnings, setWarnings] = useState(program.warnings);
+  const [updatedAt, setUpdatedAt] = useState(program.updatedAt);
+  const [refreshing, setRefreshing] = useState<VenueId[]>([]);
 
   const visibleItems = useMemo(
-    () => (venue === "all" ? program.items : program.items.filter((item) => item.venue === venue)),
-    [program.items, venue],
+    () => (venue === "all" ? items : items.filter((item) => item.venue === venue)),
+    [items, venue],
   );
 
   const screeningDates = useMemo(() => {
@@ -129,13 +135,39 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
     setMonth(date.slice(0, 7));
   }
 
+  async function updateVenue(id: VenueId) {
+    setRefreshing((current) => (current.includes(id) ? current : [...current, id]));
+    try {
+      const result = await refreshVenue(id);
+      setItems((current) => {
+        const next = [...current.filter((item) => item.venue !== id), ...result.items].sort((a, b) =>
+          a.title.localeCompare(b.title, "pt-BR"),
+        );
+        setOpenId((open) => (open && next.some((item) => item.id === open) ? open : null));
+        return next;
+      });
+      setWarnings((current) => [...current.filter((warning) => warning.venue !== id), ...result.warnings]);
+      setUpdatedAt(result.updatedAt);
+    } catch {
+      setWarnings((current) => {
+        const message = `A programação de ${VENUES[id].name} não respondeu.`;
+        const rest = current.filter((warning) => warning.venue !== id);
+        return [...rest, { venue: id, message }];
+      });
+    } finally {
+      setRefreshing((current) => current.filter((item) => item !== id));
+    }
+  }
+
+  const failedVenues = [...new Set(warnings.map((warning) => warning.venue))];
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
-      <header className="grid gap-6 border-b border-[#e7d3b0]/30 pb-8 md:grid-cols-[1.4fr_0.8fr] md:items-end">
+      <header className="grid gap-6 border-b border-line pb-8 md:grid-cols-[1.4fr_0.8fr] md:items-end">
         <div>
-          <p className="font-serif text-sm tracking-[0.28em] text-[#e4b15a] uppercase">Cartaz</p>
-          <h1 className="mt-3 font-serif text-5xl leading-none text-[#f6efe4] sm:text-7xl">Programação</h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-[#d9c7b2] sm:text-lg">
+          <p className="font-serif text-sm tracking-[0.28em] text-gold uppercase">Cartaz</p>
+          <h1 className="mt-3 font-serif text-5xl leading-none text-ink sm:text-7xl">Programação</h1>
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
             CineSesc, Cinemateca, Cine Belas Artes, Espaço Petrobras, CINUSP, Sala São Paulo, Theatro Municipal, Teatro Baccarelli e Theatro São Pedro no mesmo calendário.
           </p>
         </div>
@@ -147,13 +179,16 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                 href={place.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-[#e4b15a]/50 px-4 py-2 text-sm text-[#f6efe4] transition hover:bg-[#e4b15a] hover:text-[#1a100c]"
+                className="inline-flex items-center gap-2 rounded-full border border-gold-line px-4 py-2 text-sm text-ink transition hover:bg-gold hover:text-on-gold"
               >
                 {place.name}
               </a>
             ))}
           </div>
-          <p className="text-sm text-[#b5a08e]">Atualizado {formatUpdatedAt(program.updatedAt)}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <ThemeToggle />
+            <p className="text-sm text-faint">Atualizado {formatUpdatedAt(updatedAt)}</p>
+          </div>
         </div>
       </header>
 
@@ -169,16 +204,21 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         ))}
       </div>
 
-      {program.warnings.length > 0 && (
-        <div className="rounded-2xl border border-[#e4b15a]/30 bg-[#2a1b14] px-4 py-3 text-sm text-[#f0d7b0]">
-          {program.warnings.map((warning) => (
-            <p key={warning}>{warning}</p>
+      {failedVenues.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {failedVenues.map((id) => (
+            <VenueAlert
+              key={id}
+              warnings={warnings.filter((warning) => warning.venue === id)}
+              refreshing={refreshing.includes(id)}
+              onUpdate={() => updateVenue(id)}
+            />
           ))}
         </div>
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <section className="rounded-[28px] bg-[#f4ead8] p-4 text-[#1c120d] shadow-[0_30px_80px_rgba(0,0,0,0.35)] sm:p-6">
+        <section className="rounded-[28px] border border-line bg-paper p-4 text-paper-ink shadow-[0_30px_80px_var(--shadow)] sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <button
               type="button"
@@ -191,7 +231,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
             </button>
             <div className="text-center">
               <h2 className="font-serif text-3xl capitalize">{monthLabel(month)}</h2>
-              <button type="button" onClick={() => goTo(today)} className="mt-1 text-xs tracking-wide text-[#8a5a12] uppercase">
+              <button type="button" onClick={() => goTo(today)} className="mt-1 text-xs tracking-wide text-gold-deep uppercase">
                 Ir para hoje
               </button>
             </div>
@@ -206,7 +246,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[11px] tracking-[0.16em] text-[#8d7768] uppercase">
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] tracking-[0.16em] text-paper-faint uppercase">
             {WEEKDAYS.map((day) => (
               <div key={day} className="py-2">
                 {day}
@@ -216,7 +256,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
 
           <div className="grid grid-cols-7 gap-1">
             {cells.map((date, index) => {
-              if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-[#eadcc4]/50 sm:min-h-24" />;
+              if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-day-empty sm:min-h-24" />;
               const { total, soldOnly } = countsFor(date);
               const entries = entriesFor(date);
               const uniqueTitles = [...new Set(entries.map(({ item }) => item.title))];
@@ -231,7 +271,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                   aria-pressed={isSelected}
                   aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "sessão" : "sessões"}`}
                   className={`flex min-h-16 flex-col rounded-2xl px-1.5 py-1.5 text-left transition sm:min-h-24 sm:px-2 sm:py-2 ${
-                    isSelected ? "bg-[#1c120d] text-[#f6efe4]" : "bg-[#fbf6ec] hover:bg-white"
+                    isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day hover:bg-day-hover"
                   } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
                 >
                   <span className="flex items-center justify-between">
@@ -245,7 +285,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                     )}
                   </span>
                   {uniqueTitles.length > 0 && (
-                    <span className={`mt-1 hidden text-[11px] leading-tight sm:line-clamp-3 ${isSelected ? "text-[#f0d7b0]" : "text-[#5c4638]"}`}>
+                    <span className={`mt-1 hidden text-[11px] leading-tight sm:line-clamp-3 ${isSelected ? "text-day-selected-muted" : "text-paper-muted"}`}>
                       {uniqueTitles.slice(0, 2).join(" · ")}
                       {uniqueTitles.length > 2 ? ` +${uniqueTitles.length - 2}` : ""}
                     </span>
@@ -259,10 +299,10 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         <section className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs tracking-[0.18em] text-[#e4b15a] uppercase">{venue === "all" ? "No dia" : VENUES[venue].name}</p>
-              <h2 className="font-serif text-3xl text-[#f6efe4]">{formatLongDate(selected)}</h2>
+              <p className="text-xs tracking-[0.18em] text-gold uppercase">{venue === "all" ? "No dia" : VENUES[venue].name}</p>
+              <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
             </div>
-            <div className="flex rounded-full bg-[#2a1b14] p-1 text-sm">
+            <div className="flex rounded-full bg-chip p-1 text-sm">
               {(
                 [
                   ["all", "Tudo"],
@@ -274,7 +314,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                   type="button"
                   onClick={() => setFilter(value)}
                   aria-pressed={filter === value}
-                  className={`rounded-full px-3 py-1.5 ${filter === value ? "bg-[#f4ead8] text-[#1c120d]" : "text-[#d9c7b2]"}`}
+                  className={`rounded-full px-3 py-1.5 ${filter === value ? "bg-pressed text-pressed-ink" : "text-chip-ink"}`}
                 >
                   {label}
                 </button>
@@ -283,7 +323,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
           </div>
 
           {dayEntries.length === 0 ? (
-            <p className="rounded-[28px] border border-dashed border-[#e7d3b0]/30 px-5 py-10 text-[#d9c7b2]">
+            <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">
               Nenhuma sessão neste dia.
             </p>
           ) : (
@@ -293,12 +333,12 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                   <button
                     type="button"
                     onClick={() => setOpenId(item.id)}
-                    className="grid w-full grid-cols-[88px_1fr] gap-3 rounded-[24px] bg-[#24160f] p-3 text-left transition hover:bg-[#2e1d14] sm:grid-cols-[104px_1fr]"
+                    className="grid w-full grid-cols-[88px_1fr] gap-3 rounded-[24px] border border-line bg-card p-3 text-left transition hover:bg-card-hover sm:grid-cols-[104px_1fr]"
                   >
                     <Poster src={item.image} alt="" />
                     <span className="min-w-0">
                       <span className="flex items-baseline justify-between gap-3">
-                        <span className="font-serif text-2xl text-[#f6efe4]">{session.time || "—"}</span>
+                        <span className="font-serif text-2xl text-card-ink">{session.time || "—"}</span>
                         {showsStatus(session) ? (
                           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClass(session.availability)}`}>
                             {AVAILABILITY_LABEL[session.availability]}
@@ -307,18 +347,18 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                           <span />
                         )}
                       </span>
-                      <span className="mt-1 block truncate font-serif text-lg text-[#f6efe4]">{item.title}</span>
-                      <span className="mt-0.5 block truncate text-sm text-[#b5a08e]">
+                      <span className="mt-1 block truncate font-serif text-lg text-card-ink">{item.title}</span>
+                      <span className="mt-0.5 block truncate text-sm text-card-muted">
                         {placeLine(item.venue, item.room)}
                         {item.subtitle ? ` · ${item.subtitle}` : ""}
                       </span>
-                      <span className="mt-2 block text-xs text-[#d9c7b2]">
+                      <span className="mt-2 block text-xs text-card-faint">
                         {[ticketLine(session), priceLine(session), session.endTime ? `até ${session.endTime}` : null]
                           .filter(Boolean)
                           .join(" · ")}
                       </span>
                       {session.saleOpensAt && (
-                        <span className="mt-1 block text-xs text-[#e4b15a]">Vendas a partir de {formatSaleOpening(session.saleOpensAt)}</span>
+                        <span className="mt-1 block text-xs text-gold">Vendas a partir de {formatSaleOpening(session.saleOpensAt)}</span>
                       )}
                     </span>
                   </button>
@@ -332,17 +372,17 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
 
       {spansThisMonth.length > 0 && (
         <section>
-          <h2 className="font-serif text-2xl text-[#f6efe4]">Em cartaz no período</h2>
+          <h2 className="font-serif text-2xl text-ink">Em cartaz no período</h2>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {spansThisMonth.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
                   onClick={() => setOpenId(item.id)}
-                  className="w-full rounded-[22px] border border-[#e7d3b0]/20 px-4 py-3 text-left hover:border-[#e4b15a]/50"
+                  className="w-full rounded-[22px] border border-line bg-card px-4 py-3 text-left hover:border-gold-line"
                 >
-                  <span className="font-serif text-lg text-[#f6efe4]">{item.title}</span>
-                  <span className="mt-1 block text-sm text-[#b5a08e]">
+                  <span className="font-serif text-lg text-card-ink">{item.title}</span>
+                  <span className="mt-1 block text-sm text-card-muted">
                     {item.span?.label}
                     {item.online ? " · online" : ""}
                   </span>
@@ -353,7 +393,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         </section>
       )}
 
-      <footer className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-[#8d7768]">
+      <footer className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-faint">
         {VENUE_LIST.map((place) => (
           <Legend key={place.id} swatch={place.dot} label={place.name} />
         ))}
@@ -364,6 +404,36 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
       </footer>
 
       {openItem && <FilmSheet item={openItem} onClose={() => setOpenId(null)} onPickDate={goTo} />}
+    </div>
+  );
+}
+
+function VenueAlert({
+  warnings: venueWarnings,
+  refreshing,
+  onUpdate,
+}: {
+  warnings: VenueWarning[];
+  refreshing: boolean;
+  onUpdate: () => void;
+}) {
+  const id = venueWarnings[0]?.venue;
+  if (!id) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold-line bg-warning px-4 py-3 text-sm text-warning-ink">
+      <div>
+        {venueWarnings.map((warning) => (
+          <p key={warning.message}>{warning.message}</p>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onUpdate}
+        disabled={refreshing}
+        className="rounded-full bg-pressed px-3 py-1.5 text-sm text-pressed-ink disabled:opacity-50"
+      >
+        {refreshing ? "Atualizando…" : `Atualizar ${VENUES[id].name}`}
+      </button>
     </div>
   );
 }
@@ -383,7 +453,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={pressed}
       className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm ${
-        pressed ? "bg-[#f4ead8] text-[#1c120d]" : "bg-[#2a1b14] text-[#d9c7b2]"
+        pressed ? "bg-pressed text-pressed-ink" : "bg-chip text-chip-ink"
       }`}
     >
       {children}
@@ -401,7 +471,7 @@ function Legend({ swatch, label }: { swatch: string; label: string }) {
 }
 
 function Poster({ src, alt }: { src: string | null; alt: string }) {
-  if (!src) return <span className="block aspect-[2/1] rounded-2xl bg-[#3a271c]" />;
+  if (!src) return <span className="block aspect-[2/1] rounded-2xl bg-poster" />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt} className="aspect-[2/1] w-full rounded-2xl object-cover" />
@@ -422,16 +492,16 @@ function FilmSheet({
   )?.purchaseUrl;
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-[#140c09]/70 p-3 sm:items-center" role="presentation" onClick={onClose}>
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-overlay p-3 sm:items-center" role="presentation" onClick={onClose}>
       <article
         role="dialog"
         aria-modal="true"
         aria-labelledby="film-title"
-        className="max-h-[88vh] w-full max-w-2xl overflow-auto rounded-[28px] bg-[#f4ead8] p-5 text-[#1c120d] shadow-2xl sm:p-7"
+        className="max-h-[88vh] w-full max-w-2xl overflow-auto rounded-[28px] bg-paper p-5 text-paper-ink shadow-2xl sm:p-7"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
-          <p className="text-xs tracking-[0.18em] text-[#8a5a12] uppercase">{item.kind === "span" ? "No período" : "Todas as sessões"}</p>
+          <p className="text-xs tracking-[0.18em] text-gold-deep uppercase">{item.kind === "span" ? "No período" : "Todas as sessões"}</p>
           <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-sm" aria-label="Fechar">
             Fechar
           </button>
@@ -442,11 +512,11 @@ function FilmSheet({
             <h3 id="film-title" className="font-serif text-4xl leading-none">
               {item.title}
             </h3>
-            {item.subtitle && <p className="mt-2 text-[#5c4638]">{item.subtitle}</p>}
-            <p className="mt-3 text-sm text-[#5c4638]">{placeLine(item.venue, item.room)}</p>
-            <p className="mt-1 text-sm text-[#5c4638]">{VENUES[item.venue].address}</p>
+            {item.subtitle && <p className="mt-2 text-paper-muted">{item.subtitle}</p>}
+            <p className="mt-3 text-sm text-paper-muted">{placeLine(item.venue, item.room)}</p>
+            <p className="mt-1 text-sm text-paper-muted">{VENUES[item.venue].address}</p>
             {[item.age, ...item.tags].filter(Boolean).length > 0 && (
-              <p className="mt-3 text-sm text-[#5c4638]">{[item.age, ...item.tags].filter(Boolean).join(" · ")}</p>
+              <p className="mt-3 text-sm text-paper-muted">{[item.age, ...item.tags].filter(Boolean).join(" · ")}</p>
             )}
           </div>
         </div>
@@ -459,7 +529,7 @@ function FilmSheet({
         )}
 
         {item.sessions.length > 0 && (
-          <ul className="mt-6 divide-y divide-[#e7d3b0]">
+          <ul className="mt-6 divide-y divide-paper-line">
             {item.sessions.map((session) => (
               <li key={session.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <button type="button" onClick={() => { onPickDate(session.date); onClose(); }} className="text-left">
@@ -468,7 +538,7 @@ function FilmSheet({
                     {session.time ? ` · ${session.time}` : ""}
                     {session.endTime ? `–${session.endTime}` : ""}
                   </span>
-                  <span className="text-sm text-[#5c4638]">{[ticketLine(session), priceLine(session)].filter(Boolean).join(" · ")}</span>
+                  <span className="text-sm text-paper-muted">{[ticketLine(session), priceLine(session)].filter(Boolean).join(" · ")}</span>
                 </button>
                 {showsStatus(session) ? (
                   <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClass(session.availability)}`}>
@@ -481,16 +551,16 @@ function FilmSheet({
         )}
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <a href={item.href} target="_blank" rel="noopener noreferrer" className="rounded-full bg-[#1c120d] px-4 py-2 text-sm text-[#f6efe4]">
+          <a href={item.href} target="_blank" rel="noopener noreferrer" className="rounded-full bg-day-selected px-4 py-2 text-sm text-day-selected-ink">
             {VENUES[item.venue].pageLabel}
           </a>
           {item.watchUrl && (
-            <a href={item.watchUrl} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#1c120d]/20 px-4 py-2 text-sm">
+            <a href={item.watchUrl} target="_blank" rel="noopener noreferrer" className="rounded-full border border-paper-line px-4 py-2 text-sm">
               Assistir
             </a>
           )}
           {buyUrl && (
-            <a href={buyUrl} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#1c120d]/20 px-4 py-2 text-sm">
+            <a href={buyUrl} target="_blank" rel="noopener noreferrer" className="rounded-full border border-paper-line px-4 py-2 text-sm">
               Comprar ingresso
             </a>
           )}

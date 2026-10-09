@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Outfit } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -24,8 +25,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body className={`${outfit.variable} ${fraunces.variable} antialiased`}>{children}</body>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className={`${outfit.variable} ${fraunces.variable} antialiased`}>
+        <Script id="cartaz-theme" strategy="beforeInteractive">
+          {`try{var t=localStorage.getItem("cartaz-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}document.documentElement.dataset.theme=t}catch(e){}`}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }
