@@ -24,7 +24,9 @@ Dates and times use `America/Sao_Paulo`. There is no database. Each load reads t
 
 House chips can stay on together. **Todas** shows every house. Click a selected house again to remove it.
 
-**Tudo** shows every session on the selected day. **Com lugar** keeps sessions that are still on sale, sold only at the box office, or free.
+**Dia** keeps the month beside the selected day. **Mês** spreads that month across the page and lists each session in its day. **Agenda** lists the month by date. The choice is kept in the browser.
+
+**Tudo** shows every session. **Com lugar** keeps sessions that are still on sale, sold only at the box office, or free.
 
 **Claro** and **Escuro** switch the theme. The first visit follows the system setting, and the choice is kept in the browser. Extensions such as Dark Reader are asked not to restyle the page.
 

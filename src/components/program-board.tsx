@@ -7,6 +7,7 @@ import {
   formatLongDate,
   formatSaleOpening,
   formatUpdatedAt,
+  daysInMonth,
   monthGrid,
   monthLabel,
   shiftMonth,
@@ -32,6 +33,16 @@ const BROWSER_SOURCES: Partial<Record<VenueId, () => Promise<ProgramItem[] | nul
 };
 
 type Filter = "all" | "open";
+type BoardView = "dia" | "mes" | "agenda";
+type Screening = { item: ProgramItem; session: Session };
+
+const VIEWS: { id: BoardView; label: string }[] = [
+  { id: "dia", label: "Dia" },
+  { id: "mes", label: "Mês" },
+  { id: "agenda", label: "Agenda" },
+];
+
+const FULL_DAY_LINES = 4;
 
 const AVAILABILITY_LABEL: Record<Availability, string> = {
   available: "Disponível",
@@ -89,6 +100,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   const [month, setMonth] = useState(selectedDate.slice(0, 7));
   const [selected, setSelected] = useState(selectedDate);
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<BoardView>("dia");
   const [venues, setVenues] = useState<VenueId[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [items, setItems] = useState(program.items);
@@ -125,6 +137,15 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   });
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cartaz-view");
+      if (saved === "dia" || saved === "mes" || saved === "agenda") setView(saved);
+    } catch {
+      /* the view stays on the day */
+    }
+  }, []);
+
+  useEffect(() => {
     if (openId && !visibleItems.some((item) => item.id === openId)) setOpenId(null);
   }, [openId, visibleItems]);
 
@@ -150,6 +171,25 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   function goTo(date: string) {
     setSelected(date);
     setMonth(date.slice(0, 7));
+  }
+
+  function changeMonth(next: string) {
+    setMonth(next);
+    setSelected((current) => {
+      if (current.startsWith(next)) return current;
+      const candidate = `${next}-${current.slice(-2)}`;
+      const days = daysInMonth(next);
+      return days.includes(candidate) ? candidate : (days[0] ?? current);
+    });
+  }
+
+  function chooseView(next: BoardView) {
+    setView(next);
+    try {
+      localStorage.setItem("cartaz-view", next);
+    } catch {
+      /* the choice still applies for this visit */
+    }
   }
 
   function toggleVenue(id: VenueId) {
@@ -215,6 +255,9 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   }, [program.warnings]);
 
   const failedVenues = [...new Set(warnings.map((warning) => warning.venue))];
+  const agendaDays = daysInMonth(month)
+    .map((date) => ({ date, entries: entriesFor(date) }))
+    .filter((day) => day.entries.length > 0);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
@@ -272,158 +315,119 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         </div>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <section className="rounded-[28px] border border-line bg-paper p-4 text-paper-ink shadow-[0_30px_80px_var(--shadow)] sm:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex rounded-full bg-chip p-1 text-sm" role="group" aria-label="Vista">
+          {VIEWS.map((option) => (
             <button
+              key={option.id}
               type="button"
-              onClick={() => setMonth((current) => shiftMonth(current, -1))}
-              disabled={month <= bounds.min}
-              className="rounded-full px-3 py-2 text-sm disabled:opacity-30"
-              aria-label="Mês anterior"
+              onClick={() => chooseView(option.id)}
+              aria-pressed={view === option.id}
+              className={`rounded-full px-3 py-1.5 ${view === option.id ? "bg-pressed text-pressed-ink" : "text-chip-ink"}`}
             >
-              ←
+              {option.label}
             </button>
-            <div className="text-center">
-              <h2 className="font-serif text-3xl capitalize">{monthLabel(month)}</h2>
-              <button type="button" onClick={() => goTo(today)} className="mt-1 text-xs tracking-wide text-gold-deep uppercase">
-                Ir para hoje
-              </button>
-            </div>
+          ))}
+        </div>
+        <div className="flex rounded-full bg-chip p-1 text-sm" role="group" aria-label="Sessões">
+          {(
+            [
+              ["all", "Tudo"],
+              ["open", "Com lugar"],
+            ] as const
+          ).map(([value, label]) => (
             <button
+              key={value}
               type="button"
-              onClick={() => setMonth((current) => shiftMonth(current, 1))}
-              disabled={month >= bounds.max}
-              className="rounded-full px-3 py-2 text-sm disabled:opacity-30"
-              aria-label="Próximo mês"
+              onClick={() => setFilter(value)}
+              aria-pressed={filter === value}
+              className={`rounded-full px-3 py-1.5 ${filter === value ? "bg-pressed text-pressed-ink" : "text-chip-ink"}`}
             >
-              →
+              {label}
             </button>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[11px] tracking-[0.16em] text-paper-faint uppercase">
-            {WEEKDAYS.map((day) => (
-              <div key={day} className="py-2">
-                {day}
-              </div>
-            ))}
+      {view === "agenda" ? (
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between gap-3">
+            <MonthNav month={month} bounds={bounds} onMonth={changeMonth} onToday={() => goTo(today)} plain />
           </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((date, index) => {
-              if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-day-empty sm:min-h-24" />;
-              const { total, soldOnly } = countsFor(date);
-              const entries = entriesFor(date);
-              const uniqueTitles = [...new Set(entries.map(({ item }) => item.title))];
-              const venues = [...new Set(entries.map(({ item }) => item.venue))];
-              const isSelected = date === selected;
-              const isToday = date === today;
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() => setSelected(date)}
-                  aria-pressed={isSelected}
-                  aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "sessão" : "sessões"}`}
-                  className={`flex min-h-16 flex-col rounded-2xl px-1.5 py-1.5 text-left transition sm:min-h-24 sm:px-2 sm:py-2 ${
-                    isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day hover:bg-day-hover"
-                  } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
-                >
-                  <span className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{Number(date.slice(-2))}</span>
-                    {total > 0 && (
-                      <span className="flex gap-0.5">
-                        {venues.map((id) => (
-                          <span key={id} className={`size-1.5 rounded-full ${soldOnly ? "bg-[#8d2430]" : VENUES[id].dot}`} />
-                        ))}
+          <Agenda days={agendaDays} onOpen={setOpenId} />
+        </div>
+      ) : (
+        <div className={view === "dia" ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" : "flex flex-col gap-6"}>
+          <section className="rounded-[28px] border border-line bg-paper p-4 text-paper-ink shadow-[0_30px_80px_var(--shadow)] sm:p-6">
+            <MonthNav month={month} bounds={bounds} onMonth={changeMonth} onToday={() => goTo(today)} />
+            <Weekdays />
+            {view === "dia" ? (
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((date, index) => {
+                  if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-day-empty sm:min-h-24" />;
+                  const { total, soldOnly } = countsFor(date);
+                  const entries = entriesFor(date);
+                  const uniqueTitles = [...new Set(entries.map(({ item }) => item.title))];
+                  const houseIds = [...new Set(entries.map(({ item }) => item.venue))];
+                  const isSelected = date === selected;
+                  const isToday = date === today;
+                  return (
+                    <button
+                      key={date}
+                      type="button"
+                      onClick={() => setSelected(date)}
+                      aria-pressed={isSelected}
+                      aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "sessão" : "sessões"}`}
+                      className={`flex min-h-16 flex-col rounded-2xl px-1.5 py-1.5 text-left transition sm:min-h-24 sm:px-2 sm:py-2 ${
+                        isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day hover:bg-day-hover"
+                      } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
+                    >
+                      <span className="flex items-center justify-between">
+                        <span className="text-sm font-medium">{Number(date.slice(-2))}</span>
+                        {total > 0 && (
+                          <span className="flex gap-0.5">
+                            {houseIds.map((id) => (
+                              <span key={id} className={`size-1.5 rounded-full ${soldOnly ? "bg-[#8d2430]" : VENUES[id].dot}`} />
+                            ))}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  {uniqueTitles.length > 0 && (
-                    <span className={`mt-1 hidden text-[11px] leading-tight sm:line-clamp-3 ${isSelected ? "text-day-selected-muted" : "text-paper-muted"}`}>
-                      {uniqueTitles.slice(0, 2).join(" · ")}
-                      {uniqueTitles.length > 2 ? ` +${uniqueTitles.length - 2}` : ""}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                      {uniqueTitles.length > 0 && (
+                        <span className={`mt-1 hidden text-[11px] leading-tight sm:line-clamp-3 ${isSelected ? "text-day-selected-muted" : "text-paper-muted"}`}>
+                          {uniqueTitles.slice(0, 2).join(" · ")}
+                          {uniqueTitles.length > 2 ? ` +${uniqueTitles.length - 2}` : ""}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((date, index) => (
+                  <FullDay
+                    key={date || `empty-${index}`}
+                    date={date}
+                    today={today}
+                    selected={selected}
+                    entries={date ? entriesFor(date) : []}
+                    onSelect={setSelected}
+                    onOpen={setOpenId}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
 
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <section className="flex flex-col gap-4">
             <div>
               <p className="text-xs tracking-[0.18em] text-gold uppercase">{houseLabel}</p>
               <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
             </div>
-            <div className="flex rounded-full bg-chip p-1 text-sm">
-              {(
-                [
-                  ["all", "Tudo"],
-                  ["open", "Com lugar"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setFilter(value)}
-                  aria-pressed={filter === value}
-                  className={`rounded-full px-3 py-1.5 ${filter === value ? "bg-pressed text-pressed-ink" : "text-chip-ink"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {dayEntries.length === 0 ? (
-            <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">
-              Nenhuma sessão neste dia.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {dayEntries.map(({ item, session }) => (
-                <li key={`${item.id}-${session.id}`}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(item.id)}
-                    className="grid w-full grid-cols-[88px_1fr] gap-3 rounded-[24px] border border-line bg-card p-3 text-left transition hover:bg-card-hover sm:grid-cols-[104px_1fr]"
-                  >
-                    <Poster src={item.image} alt="" />
-                    <span className="min-w-0">
-                      <span className="flex items-baseline justify-between gap-3">
-                        <span className="font-serif text-2xl text-card-ink">{session.time || "—"}</span>
-                        {showsStatus(session) ? (
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClass(session.availability)}`}>
-                            {AVAILABILITY_LABEL[session.availability]}
-                          </span>
-                        ) : (
-                          <span />
-                        )}
-                      </span>
-                      <span className="mt-1 block truncate font-serif text-lg text-card-ink">{item.title}</span>
-                      <span className="mt-0.5 block truncate text-sm text-card-muted">
-                        {placeLine(item.venue, item.room)}
-                        {item.subtitle ? ` · ${item.subtitle}` : ""}
-                      </span>
-                      <span className="mt-2 block text-xs text-card-faint">
-                        {[ticketLine(session), priceLine(session), session.endTime ? `até ${session.endTime}` : null]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                      {session.saleOpensAt && (
-                        <span className="mt-1 block text-xs text-gold">Vendas a partir de {formatSaleOpening(session.saleOpensAt)}</span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-        </section>
-      </div>
+            <DaySchedule entries={dayEntries} onOpen={setOpenId} />
+          </section>
+        </div>
+      )}
 
       {spansThisMonth.length > 0 && (
         <section>
@@ -460,6 +464,195 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
 
       {openItem && <FilmSheet item={openItem} onClose={() => setOpenId(null)} onPickDate={goTo} />}
     </div>
+  );
+}
+
+function MonthNav({
+  month,
+  bounds,
+  onMonth,
+  onToday,
+  plain = false,
+}: {
+  month: string;
+  bounds: { min: string; max: string };
+  onMonth: (month: string) => void;
+  onToday: () => void;
+  plain?: boolean;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-3 ${plain ? "" : "mb-5"}`}>
+      <button
+        type="button"
+        onClick={() => onMonth(shiftMonth(month, -1))}
+        disabled={month <= bounds.min}
+        className="rounded-full px-3 py-2 text-sm disabled:opacity-30"
+        aria-label="Mês anterior"
+      >
+        ←
+      </button>
+      <div className="text-center">
+        <h2 className="font-serif text-3xl capitalize">{monthLabel(month)}</h2>
+        <button type="button" onClick={onToday} className="mt-1 text-xs tracking-wide text-gold-deep uppercase">
+          Ir para hoje
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => onMonth(shiftMonth(month, 1))}
+        disabled={month >= bounds.max}
+        className="rounded-full px-3 py-2 text-sm disabled:opacity-30"
+        aria-label="Próximo mês"
+      >
+        →
+      </button>
+    </div>
+  );
+}
+
+function Weekdays() {
+  return (
+    <div className="grid grid-cols-7 gap-1 text-center text-[11px] tracking-[0.16em] text-paper-faint uppercase">
+      {WEEKDAYS.map((day) => (
+        <div key={day} className="py-2">
+          {day}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FullDay({
+  date,
+  today,
+  selected,
+  entries,
+  onSelect,
+  onOpen,
+}: {
+  date: string;
+  today: string;
+  selected: string;
+  entries: Screening[];
+  onSelect: (date: string) => void;
+  onOpen: (id: string) => void;
+}) {
+  if (!date) return <div className="min-h-16 rounded-2xl bg-day-empty sm:min-h-40" />;
+  const isSelected = date === selected;
+  const isToday = date === today;
+  const shown = entries.slice(0, FULL_DAY_LINES);
+  const hidden = entries.length - shown.length;
+  const quiet = isSelected ? "text-day-selected-muted" : "text-paper-muted";
+
+  return (
+    <div
+      className={`flex min-h-16 flex-col rounded-2xl px-1 py-1 sm:min-h-40 sm:px-1.5 sm:py-1.5 ${
+        isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day"
+      } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
+    >
+      <button
+        type="button"
+        onClick={() => onSelect(date)}
+        aria-pressed={isSelected}
+        aria-label={`${formatLongDate(date)}, ${entries.length} ${entries.length === 1 ? "sessão" : "sessões"}`}
+        className="px-0.5 text-left text-sm font-medium"
+      >
+        {Number(date.slice(-2))}
+        {entries.length > 0 && <span className={`ml-1 text-[11px] font-normal sm:hidden ${quiet}`}>{entries.length}</span>}
+      </button>
+      <ul className="mt-1 hidden min-h-0 flex-col gap-0.5 sm:flex">
+        {shown.map(({ item, session }) => {
+          const closed = session.availability === "soldout" || session.availability === "cancelled";
+          return (
+            <li key={`${item.id}-${session.id}`}>
+              <button
+                type="button"
+                onClick={() => onOpen(item.id)}
+                title={`${session.time || "Dia"} ${item.title}`}
+                className="flex w-full items-center gap-1 text-left text-[11px] leading-tight"
+              >
+                <span className={`size-1.5 shrink-0 rounded-full ${VENUES[item.venue].dot}`} />
+                <span className={`shrink-0 tabular-nums ${quiet}`}>{session.time || "—"}</span>
+                <span className={`truncate ${closed ? "line-through opacity-70" : ""}`}>{item.title}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {hidden > 0 && (
+        <button type="button" onClick={() => onSelect(date)} className={`mt-0.5 hidden px-0.5 text-left text-[11px] sm:block ${quiet}`}>
+          +{hidden}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[] }[]; onOpen: (id: string) => void }) {
+  if (days.length === 0) {
+    return <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">Nenhuma sessão neste mês.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-8">
+      {days.map(({ date, entries }) => (
+        <section key={date}>
+          <h2 className="font-serif text-2xl text-ink">{formatLongDate(date)}</h2>
+          <div className="mt-3">
+            <DaySchedule entries={entries} onOpen={onOpen} />
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function DaySchedule({ entries, onOpen }: { entries: Screening[]; onOpen: (id: string) => void }) {
+  if (entries.length === 0) {
+    return <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">Nenhuma sessão neste dia.</p>;
+  }
+  return (
+    <ul className="flex flex-col gap-3">
+      {entries.map(({ item, session }) => (
+        <li key={`${item.id}-${session.id}`}>
+          <SessionCard item={item} session={session} onOpen={() => onOpen(item.id)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SessionCard({ item, session, onOpen }: { item: ProgramItem; session: Session; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="grid w-full grid-cols-[88px_1fr] gap-3 rounded-[24px] border border-line bg-card p-3 text-left transition hover:bg-card-hover sm:grid-cols-[104px_1fr]"
+    >
+      <Poster src={item.image} alt="" />
+      <span className="min-w-0">
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="font-serif text-2xl text-card-ink">{session.time || "—"}</span>
+          {showsStatus(session) ? (
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClass(session.availability)}`}>
+              {AVAILABILITY_LABEL[session.availability]}
+            </span>
+          ) : (
+            <span />
+          )}
+        </span>
+        <span className="mt-1 block truncate font-serif text-lg text-card-ink">{item.title}</span>
+        <span className="mt-0.5 block truncate text-sm text-card-muted">
+          {placeLine(item.venue, item.room)}
+          {item.subtitle ? ` · ${item.subtitle}` : ""}
+        </span>
+        <span className="mt-2 block text-xs text-card-faint">
+          {[ticketLine(session), priceLine(session), session.endTime ? `até ${session.endTime}` : null].filter(Boolean).join(" · ")}
+        </span>
+        {session.saleOpensAt && (
+          <span className="mt-1 block text-xs text-gold">Vendas a partir de {formatSaleOpening(session.saleOpensAt)}</span>
+        )}
+      </span>
+    </button>
   );
 }
 
