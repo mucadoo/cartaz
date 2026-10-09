@@ -7,7 +7,9 @@ import { loadCinemateca } from "@/lib/cinemateca";
 import { loadMunicipal } from "@/lib/municipal";
 import { loadSala } from "@/lib/sala";
 import { loadCineSesc } from "@/lib/sesc";
-import type { Program, ProgramItem, VenueId, VenueWarning } from "@/lib/types";
+import { saoPauloToday } from "@/lib/dates";
+import { TICKET_REVALIDATE_SECONDS, withRevalidate } from "@/lib/http";
+import type { Program, ProgramItem, Session, VenueId, VenueWarning } from "@/lib/types";
 
 const FAILED: Record<VenueId, string> = {
   cinesesc: "A programação do CineSesc não respondeu.",
@@ -47,7 +49,24 @@ export async function loadVenue(id: VenueId, now = new Date()): Promise<{ items:
   }
 }
 
-export async function loadProgram(now = new Date()): Promise<Program> {
+function sessionOnSale(session: Session, today: string): boolean {
+  if (session.date < today) return false;
+  if (session.availability !== "available" && session.availability !== "boxoffice") return false;
+  const priced = Boolean(
+    session.prices && (session.prices.full != null || session.prices.half != null || session.prices.credential != null),
+  );
+  return Boolean(session.purchaseUrl || session.priceLabel || priced || session.webTickets != null || session.boxOfficeTickets != null);
+}
+
+function venuesOnSale(items: ProgramItem[], today: string): VenueId[] {
+  const ids = new Set<VenueId>();
+  for (const item of items) {
+    if (item.sessions.some((session) => sessionOnSale(session, today))) ids.add(item.venue);
+  }
+  return VENUE_IDS.filter((id) => ids.has(id));
+}
+
+async function collect(now: Date): Promise<Program> {
   const settled = await Promise.allSettled(VENUE_IDS.map((id) => loadVenue(id, now)));
   const items: ProgramItem[] = [];
   const warnings: VenueWarning[] = [];
@@ -65,6 +84,36 @@ export async function loadProgram(now = new Date()): Promise<Program> {
   if (items.length === 0) {
     throw new Error(warnings[0]?.message ?? "A programação não carregou.");
   }
+
+  items.sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
+
+  return {
+    items,
+    updatedAt: now.toISOString(),
+    warnings,
+  };
+}
+
+export async function loadProgram(now = new Date()): Promise<Program> {
+  const program = await collect(now);
+  const watch = venuesOnSale(program.items, saoPauloToday(now));
+  if (watch.length === 0) return program;
+
+  const refreshed = await withRevalidate(TICKET_REVALIDATE_SECONDS, () => Promise.all(watch.map((id) => loadVenue(id, now))));
+  const watched = new Set(watch);
+  const items = program.items.filter((item) => !watched.has(item.venue));
+  const warnings = program.warnings.filter((warning) => !watched.has(warning.venue));
+
+  refreshed.forEach((result, index) => {
+    const id = watch[index];
+    if (result.items.length === 0 && result.warnings.length > 0) {
+      items.push(...program.items.filter((item) => item.venue === id));
+      warnings.push(...program.warnings.filter((warning) => warning.venue === id));
+      return;
+    }
+    items.push(...result.items);
+    warnings.push(...result.warnings);
+  });
 
   items.sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
 

@@ -6,19 +6,31 @@ const HEADERS = {
   "User-Agent": "Cartaz/1.0 (calendario de programacao cultural)",
 };
 
+/** Full program. Twice a day. */
+export const PROGRAM_REVALIDATE_SECONDS = 12 * 60 * 60;
+
+/** Ticket stock for houses that still have seats on sale. */
+export const TICKET_REVALIDATE_SECONDS = 2 * 60 * 60;
+
 const freshRequests = new AsyncLocalStorage<true>();
+const revalidateRequests = new AsyncLocalStorage<number>();
 
 export function withFreshFetch<T>(work: () => Promise<T>): Promise<T> {
   return freshRequests.run(true, work);
 }
 
+export function withRevalidate<T>(seconds: number, work: () => Promise<T>): Promise<T> {
+  return revalidateRequests.run(seconds, work);
+}
+
 function request(url: string, init: RequestInit | undefined, fresh: boolean): Promise<Response> {
+  const revalidate = revalidateRequests.getStore() ?? PROGRAM_REVALIDATE_SECONDS;
   return fetch(url, {
     ...init,
     headers: { ...HEADERS, ...(init?.headers as Record<string, string> | undefined) },
     redirect: "follow",
     signal: AbortSignal.timeout(12000),
-    ...(fresh ? { cache: "no-store" as const } : { next: { revalidate: 43200 } }), // twice a day
+    ...(fresh ? { cache: "no-store" as const } : { next: { revalidate } }),
   });
 }
 
