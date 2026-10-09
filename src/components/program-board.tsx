@@ -42,8 +42,6 @@ const VIEWS: { id: BoardView; label: string }[] = [
   { id: "agenda", label: "Agenda" },
 ];
 
-const FULL_DAY_LINES = 4;
-
 const AVAILABILITY_LABEL: Record<Availability, string> = {
   available: "Disponível",
   boxoffice: "Só na bilheteria",
@@ -260,7 +258,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
     .filter((day) => day.entries.length > 0);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
+    <div className={`mx-auto flex w-full flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12 ${view === "mes" ? "max-w-[90rem]" : "max-w-6xl"}`}>
       <header className="grid gap-6 border-b border-line pb-8 md:grid-cols-[1.4fr_0.8fr] md:items-end">
         <div>
           <p className="font-serif text-sm tracking-[0.28em] text-gold uppercase">Cartaz</p>
@@ -360,9 +358,10 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         <div className={view === "dia" ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" : "flex flex-col gap-6"}>
           <section className="rounded-[28px] border border-line bg-paper p-4 text-paper-ink shadow-[0_30px_80px_var(--shadow)] sm:p-6">
             <MonthNav month={month} bounds={bounds} onMonth={changeMonth} onToday={() => goTo(today)} />
-            <Weekdays />
             {view === "dia" ? (
-              <div className="grid grid-cols-7 gap-1">
+              <>
+                <Weekdays />
+                <div className="grid grid-cols-7 gap-1">
                 {cells.map((date, index) => {
                   if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-day-empty sm:min-h-24" />;
                   const { total, soldOnly } = countsFor(date);
@@ -402,30 +401,36 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                   );
                 })}
               </div>
+              </>
             ) : (
-              <div className="grid grid-cols-7 gap-1">
-                {cells.map((date, index) => (
-                  <FullDay
-                    key={date || `empty-${index}`}
-                    date={date}
-                    today={today}
-                    selected={selected}
-                    entries={date ? entriesFor(date) : []}
-                    onSelect={setSelected}
-                    onOpen={setOpenId}
-                  />
-                ))}
+              <div className="overflow-x-auto">
+                <div className="min-w-[84rem]">
+                  <Weekdays />
+                  <div className="grid grid-cols-7 gap-1">
+                    {cells.map((date, index) => (
+                      <FullDay
+                        key={date || `empty-${index}`}
+                        date={date}
+                        today={today}
+                        selected={selected}
+                        entries={date ? entriesFor(date) : []}
+                        onSelect={setSelected}
+                        onOpen={setOpenId}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </section>
 
-          <section className="flex flex-col gap-4">
+          {view === "dia" && <section className="flex flex-col gap-4">
             <div>
               <p className="text-xs tracking-[0.18em] text-gold uppercase">{houseLabel}</p>
               <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
             </div>
             <DaySchedule entries={dayEntries} onOpen={setOpenId} />
-          </section>
+          </section>}
         </div>
       )}
 
@@ -537,16 +542,14 @@ function FullDay({
   onSelect: (date: string) => void;
   onOpen: (id: string) => void;
 }) {
-  if (!date) return <div className="min-h-16 rounded-2xl bg-day-empty sm:min-h-40" />;
+  if (!date) return <div className="min-h-16 rounded-2xl bg-day-empty" />;
   const isSelected = date === selected;
   const isToday = date === today;
-  const shown = entries.slice(0, FULL_DAY_LINES);
-  const hidden = entries.length - shown.length;
   const quiet = isSelected ? "text-day-selected-muted" : "text-paper-muted";
 
   return (
     <div
-      className={`flex min-h-16 flex-col rounded-2xl px-1 py-1 sm:min-h-40 sm:px-1.5 sm:py-1.5 ${
+      className={`flex min-h-24 flex-col rounded-2xl px-1.5 py-1.5 ${
         isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day"
       } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
     >
@@ -558,32 +561,35 @@ function FullDay({
         className="px-0.5 text-left text-sm font-medium"
       >
         {Number(date.slice(-2))}
-        {entries.length > 0 && <span className={`ml-1 text-[11px] font-normal sm:hidden ${quiet}`}>{entries.length}</span>}
       </button>
-      <ul className="mt-1 hidden min-h-0 flex-col gap-0.5 sm:flex">
-        {shown.map(({ item, session }) => {
+      <ul className="mt-1 flex flex-col gap-1">
+        {entries.map(({ item, session }) => {
           const closed = session.availability === "soldout" || session.availability === "cancelled";
+          const detail = [ticketLine(session), priceLine(session)].filter(Boolean).join(" · ");
+          const status =
+            session.availability === "available" || !showsStatus(session) ? null : AVAILABILITY_LABEL[session.availability];
           return (
             <li key={`${item.id}-${session.id}`}>
               <button
                 type="button"
                 onClick={() => onOpen(item.id)}
+                className="w-full rounded-lg px-1 py-1 text-left hover:opacity-80"
                 title={`${session.time || "Dia"} ${item.title}`}
-                className="flex w-full items-center gap-1 text-left text-[11px] leading-tight"
               >
-                <span className={`size-1.5 shrink-0 rounded-full ${VENUES[item.venue].dot}`} />
-                <span className={`shrink-0 tabular-nums ${quiet}`}>{session.time || "—"}</span>
-                <span className={`truncate ${closed ? "line-through opacity-70" : ""}`}>{item.title}</span>
+                <span className="flex items-center gap-1">
+                  <span className={`size-1.5 shrink-0 rounded-full ${VENUES[item.venue].dot}`} />
+                  <span className={`text-[11px] tabular-nums ${quiet}`}>{session.time || "—"}</span>
+                  {status && <span className={`ml-auto text-[10px] ${quiet}`}>{status}</span>}
+                </span>
+                <span className={`mt-0.5 block text-xs leading-snug ${closed ? "line-through opacity-70" : ""}`}>{item.title}</span>
+                <span className={`mt-0.5 block text-[11px] leading-snug ${quiet}`}>{placeLine(item.venue, item.room)}</span>
+                {item.subtitle && <span className={`mt-0.5 line-clamp-2 block text-[11px] leading-snug ${quiet}`}>{item.subtitle}</span>}
+                {detail && <span className={`mt-0.5 block text-[11px] leading-snug ${quiet}`}>{detail}</span>}
               </button>
             </li>
           );
         })}
       </ul>
-      {hidden > 0 && (
-        <button type="button" onClick={() => onSelect(date)} className={`mt-0.5 hidden px-0.5 text-left text-[11px] sm:block ${quiet}`}>
-          +{hidden}
-        </button>
-      )}
     </div>
   );
 }

@@ -24,7 +24,7 @@ Dates and times use `America/Sao_Paulo`. There is no database. Each load reads t
 
 House chips can stay on together. **Todas** shows every house. Click a selected house again to remove it.
 
-**Dia** keeps the month beside the selected day. **Mês** spreads that month across the page and lists each session in its day. **Agenda** lists the month by date. The choice is kept in the browser.
+**Dia** keeps the month beside the selected day. **Mês** fills each day of the month with every session: time, title, house, and price or tickets when the house publishes them. **Agenda** lists the month by date. The choice is kept in the browser.
 
 **Tudo** shows every session. **Com lugar** keeps sessions that are still on sale, sold only at the box office, or free.
 
