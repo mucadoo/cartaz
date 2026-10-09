@@ -32,7 +32,6 @@ const BROWSER_SOURCES: Partial<Record<VenueId, () => Promise<ProgramItem[] | nul
 };
 
 type Filter = "all" | "open";
-type VenueFilter = "all" | VenueId;
 
 const AVAILABILITY_LABEL: Record<Availability, string> = {
   available: "Disponível",
@@ -90,7 +89,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   const [month, setMonth] = useState(selectedDate.slice(0, 7));
   const [selected, setSelected] = useState(selectedDate);
   const [filter, setFilter] = useState<Filter>("all");
-  const [venue, setVenue] = useState<VenueFilter>("all");
+  const [venues, setVenues] = useState<VenueId[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [items, setItems] = useState(program.items);
   const [warnings, setWarnings] = useState(program.warnings);
@@ -98,8 +97,8 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   const [refreshing, setRefreshing] = useState<VenueId[]>([]);
 
   const visibleItems = useMemo(
-    () => (venue === "all" ? items : items.filter((item) => item.venue === venue)),
-    [items, venue],
+    () => (venues.length === 0 ? items : items.filter((item) => venues.includes(item.venue))),
+    [items, venues],
   );
 
   const screeningDates = useMemo(() => {
@@ -126,6 +125,10 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
   });
 
   useEffect(() => {
+    if (openId && !visibleItems.some((item) => item.id === openId)) setOpenId(null);
+  }, [openId, visibleItems]);
+
+  useEffect(() => {
     if (!openId) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") setOpenId(null);
@@ -148,6 +151,17 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
     setSelected(date);
     setMonth(date.slice(0, 7));
   }
+
+  function toggleVenue(id: VenueId) {
+    setVenues((current) => {
+      if (current.length === 0) return [id];
+      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+      if (next.length === 0 || next.length === VENUE_LIST.length) return [];
+      return next;
+    });
+  }
+
+  const houseLabel = venues.length === 0 ? "No dia" : venues.length === 1 ? VENUES[venues[0]].name : `${venues.length} casas`;
 
   function applyVenue(id: VenueId, venueItems: ProgramItem[], venueWarnings: VenueWarning[]) {
     setItems((current) => {
@@ -233,12 +247,12 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Casa">
-        <FilterChip pressed={venue === "all"} onClick={() => setVenue("all")}>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Casas">
+        <FilterChip pressed={venues.length === 0} onClick={() => setVenues([])}>
           Todas
         </FilterChip>
         {VENUE_LIST.map((place) => (
-          <FilterChip key={place.id} pressed={venue === place.id} onClick={() => setVenue(place.id)}>
+          <FilterChip key={place.id} pressed={venues.includes(place.id)} onClick={() => toggleVenue(place.id)}>
             <span className={`size-1.5 rounded-full ${place.dot}`} />
             {place.name}
           </FilterChip>
@@ -340,7 +354,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         <section className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs tracking-[0.18em] text-gold uppercase">{venue === "all" ? "No dia" : VENUES[venue].name}</p>
+              <p className="text-xs tracking-[0.18em] text-gold uppercase">{houseLabel}</p>
               <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
             </div>
             <div className="flex rounded-full bg-chip p-1 text-sm">
