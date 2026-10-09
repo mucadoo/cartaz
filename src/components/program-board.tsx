@@ -145,6 +145,8 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
               <a
                 key={place.id}
                 href={place.href}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-full border border-[#e4b15a]/50 px-4 py-2 text-sm text-[#f6efe4] transition hover:bg-[#e4b15a] hover:text-[#1a100c]"
               >
                 {place.name}
@@ -479,16 +481,16 @@ function FilmSheet({
         )}
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <a href={item.href} className="rounded-full bg-[#1c120d] px-4 py-2 text-sm text-[#f6efe4]">
+          <a href={item.href} target="_blank" rel="noopener noreferrer" className="rounded-full bg-[#1c120d] px-4 py-2 text-sm text-[#f6efe4]">
             {VENUES[item.venue].pageLabel}
           </a>
           {item.watchUrl && (
-            <a href={item.watchUrl} className="rounded-full border border-[#1c120d]/20 px-4 py-2 text-sm">
+            <a href={item.watchUrl} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#1c120d]/20 px-4 py-2 text-sm">
               Assistir
             </a>
           )}
           {buyUrl && (
-            <a href={buyUrl} className="rounded-full border border-[#1c120d]/20 px-4 py-2 text-sm">
+            <a href={buyUrl} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[#1c120d]/20 px-4 py-2 text-sm">
               Comprar ingresso
             </a>
           )}

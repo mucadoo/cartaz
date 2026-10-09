@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cartaz">
+  <rect width="64" height="64" rx="14" fill="#1c120d"/>
+  <rect x="22" y="13" width="28" height="42" rx="2" fill="#c9893a"/>
+  <rect x="14" y="9" width="30" height="46" rx="2" fill="#f4ead8"/>
+  <rect x="18" y="16" width="22" height="4" rx="1" fill="#c9893a"/>
+  <rect x="18" y="24" width="22" height="2" fill="#1c120d" opacity="0.72"/>
+  <rect x="18" y="29" width="16" height="2" fill="#1c120d" opacity="0.42"/>
+  <rect x="18" y="34" width="22" height="2" fill="#1c120d" opacity="0.42"/>
+</svg>
