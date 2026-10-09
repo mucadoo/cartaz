@@ -14,7 +14,10 @@ export function ThemeToggle() {
   function toggle() {
     const current: Theme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
     const next: Theme = current === "light" ? "dark" : "light";
+    const scheme = next === "light" ? "light only" : "dark only";
     document.documentElement.dataset.theme = next;
+    document.documentElement.style.colorScheme = scheme;
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", scheme);
     localStorage.setItem("cartaz-theme", next);
     setTheme(next);
   }

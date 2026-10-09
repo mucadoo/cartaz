@@ -25,10 +25,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" data-darkreader-lock="" suppressHydrationWarning>
+      <head>
+        <meta name="darkreader-lock" />
+        <meta name="color-scheme" content="dark only" />
+      </head>
       <body className={`${outfit.variable} ${fraunces.variable} antialiased`}>
         <Script id="cartaz-theme" strategy="beforeInteractive">
-          {`try{var t=localStorage.getItem("cartaz-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}document.documentElement.dataset.theme=t}catch(e){}`}
+          {`try{var t=localStorage.getItem("cartaz-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}var s=t==="light"?"light only":"dark only";document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=s;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.setAttribute("content",s)}catch(e){}`}
         </Script>
         {children}
       </body>

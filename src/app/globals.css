@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: dark;
+  color-scheme: dark only;
   --page: #140c09;
   --ink: #f6efe4;
   --muted: #d9c7b2;
@@ -41,7 +41,7 @@
 }
 
 [data-theme="light"] {
-  color-scheme: light;
+  color-scheme: light only;
   --page: #f4ead8;
   --ink: #1c120d;
   --muted: #5c4638;
