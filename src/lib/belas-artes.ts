@@ -5,6 +5,18 @@ import type { Availability, ProgramItem, Session } from "@/lib/types";
 const REGULAR = "https://www.cinebelasartes.com.br/programacao-regular/";
 const SPECIAL = "https://www.cinebelasartes.com.br/programacao-especial/";
 const HTML = { Accept: "text/html" };
+const RELAY = "https://r.jina.ai/";
+
+let relayOnly = false;
+
+async function fetchHtml(url: string): Promise<string | null> {
+  if (!relayOnly) {
+    const direct = await fetchText(url, { headers: HTML });
+    if (direct) return direct;
+    relayOnly = true;
+  }
+  return fetchText(`${RELAY}${url}`, { headers: { ...HTML, "X-Return-Format": "html" } });
+}
 
 type Card = {
   title: string;
@@ -756,7 +768,7 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise
 
 async function attachRegularTickets(items: ProgramItem[]): Promise<void> {
   const hrefs = [...new Set(items.map((item) => item.href))];
-  const pages = await mapPool(hrefs, 4, async (href) => [href, await fetchText(href, { headers: HTML })] as const);
+  const pages = await mapPool(hrefs, 4, async (href) => [href, await fetchHtml(href)] as const);
   const tickets = new Map<string, string>();
   for (const [href, html] of pages) {
     const url = html?.match(/https?:\/\/www\.veloxtickets\.com\/Parceiro\/P-[^"'\s]+/)?.[0];
@@ -771,10 +783,9 @@ async function attachRegularTickets(items: ProgramItem[]): Promise<void> {
 
 export async function loadBelasArtes(now = new Date()): Promise<{ items: ProgramItem[]; warnings: string[] }> {
   const today = saoPauloToday(now);
-  const [regularHtml, specialHtml] = await Promise.all([
-    fetchText(REGULAR, { headers: HTML }),
-    fetchText(SPECIAL, { headers: HTML }),
-  ]);
+  relayOnly = false;
+  const regularHtml = await fetchHtml(REGULAR);
+  const specialHtml = await fetchHtml(SPECIAL);
   const warnings: string[] = [];
   const used = new Set<string>();
   const regular = regularHtml ? parseRegular(regularHtml, today, used) : [];
@@ -787,7 +798,7 @@ export async function loadBelasArtes(now = new Date()): Promise<{ items: Program
   if (!specialHtml) warnings.push("A programação especial do Cine Belas Artes não respondeu.");
 
   const [pages] = await Promise.all([
-    mapPool(cards, 4, async (card) => ({ card, html: await fetchText(card.href, { headers: HTML }) })),
+    mapPool(cards, 4, async (card) => ({ card, html: await fetchHtml(card.href) })),
     attachRegularTickets(regular),
   ]);
 

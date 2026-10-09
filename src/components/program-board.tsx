@@ -15,7 +15,21 @@ import { screeningsOn } from "@/lib/schedule";
 import type { Availability, Program, ProgramItem, Session, VenueId, VenueWarning } from "@/lib/types";
 import { placeLine, VENUE_LIST, VENUES } from "@/lib/venues";
 import { refreshVenue } from "@/app/refresh-venue";
+import { collectCinemateca } from "@/lib/cinemateca-parse";
 import { ThemeToggle } from "@/components/theme-toggle";
+
+async function browserBody(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+    return response.ok ? await response.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+const BROWSER_SOURCES: Partial<Record<VenueId, () => Promise<ProgramItem[] | null>>> = {
+  cinemateca: () => collectCinemateca(new Date(), browserBody),
+};
 
 type Filter = "all" | "open";
 type VenueFilter = "all" | VenueId;
@@ -135,29 +149,56 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
     setMonth(date.slice(0, 7));
   }
 
+  function applyVenue(id: VenueId, venueItems: ProgramItem[], venueWarnings: VenueWarning[]) {
+    setItems((current) => {
+      const next = [...current.filter((item) => item.venue !== id), ...venueItems].sort((a, b) =>
+        a.title.localeCompare(b.title, "pt-BR"),
+      );
+      setOpenId((open) => (open && next.some((item) => item.id === open) ? open : null));
+      return next;
+    });
+    setWarnings((current) => [...current.filter((warning) => warning.venue !== id), ...venueWarnings]);
+    setUpdatedAt(new Date().toISOString());
+  }
+
+  async function loadInBrowser(id: VenueId): Promise<boolean> {
+    const source = BROWSER_SOURCES[id];
+    if (!source) return false;
+    const found = await source();
+    if (!found) return false;
+    applyVenue(id, found, []);
+    return true;
+  }
+
   async function updateVenue(id: VenueId) {
     setRefreshing((current) => (current.includes(id) ? current : [...current, id]));
     try {
-      const result = await refreshVenue(id);
-      setItems((current) => {
-        const next = [...current.filter((item) => item.venue !== id), ...result.items].sort((a, b) =>
-          a.title.localeCompare(b.title, "pt-BR"),
-        );
-        setOpenId((open) => (open && next.some((item) => item.id === open) ? open : null));
-        return next;
-      });
-      setWarnings((current) => [...current.filter((warning) => warning.venue !== id), ...result.warnings]);
-      setUpdatedAt(result.updatedAt);
-    } catch {
-      setWarnings((current) => {
-        const message = `A programação de ${VENUES[id].name} não respondeu.`;
-        const rest = current.filter((warning) => warning.venue !== id);
-        return [...rest, { venue: id, message }];
-      });
+      const result = await refreshVenue(id).catch(() => null);
+      if (result && result.warnings.length === 0) {
+        applyVenue(id, result.items, []);
+        return;
+      }
+      if (await loadInBrowser(id)) return;
+      if (result) applyVenue(id, result.items, result.warnings);
+      else {
+        setWarnings((current) => [
+          ...current.filter((warning) => warning.venue !== id),
+          { venue: id, message: `A programação de ${VENUES[id].name} não respondeu.` },
+        ]);
+      }
     } finally {
       setRefreshing((current) => current.filter((item) => item !== id));
     }
   }
+
+  useEffect(() => {
+    const failed = [...new Set(program.warnings.map((warning) => warning.venue))].filter((id) => BROWSER_SOURCES[id]);
+    for (const id of failed) {
+      setRefreshing((current) => (current.includes(id) ? current : [...current, id]));
+      loadInBrowser(id).finally(() => setRefreshing((current) => current.filter((item) => item !== id)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [program.warnings]);
 
   const failedVenues = [...new Set(warnings.map((warning) => warning.venue))];
 
