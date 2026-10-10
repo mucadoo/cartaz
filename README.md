@@ -32,7 +32,7 @@ Dates and times use `America/Sao_Paulo`. There is no database. Each load reads t
 
 House chips can stay on together. **Todas** shows every house. Click a selected house again to remove it.
 
-**Dia** keeps the month beside the selected day. **Mês** fills each day with every session and every exhibition open that day. **Agenda** lists the month by date. The choice is kept in the browser.
+**Dia**, **Mês**, and **Agenda** share the same width. The month or the date list stays on the left, and the selected day’s sessions stay on the right. **Mês** writes every session inside its day. Exhibitions and other runs across several days appear once, under **Em cartaz no período**. The choice of view is kept in the browser.
 
 **Tudo** shows every session. **Com lugar** keeps sessions that are still on sale, sold only at the box office, or free.
 

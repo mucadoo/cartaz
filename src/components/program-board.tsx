@@ -12,7 +12,7 @@ import {
   monthLabel,
   shiftMonth,
 } from "@/lib/dates";
-import { screeningsOn, spanCue, spansOn } from "@/lib/schedule";
+import { screeningsOn } from "@/lib/schedule";
 import type { Availability, Program, ProgramItem, Session, VenueId, VenueWarning } from "@/lib/types";
 import { placeLine, VENUE_LIST, VENUES } from "@/lib/venues";
 import { refreshVenue } from "@/app/refresh-venue";
@@ -127,12 +127,6 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
     filter === "all" ? true : isOpen(session.availability),
   );
   const openItem = visibleItems.find((item) => item.id === openId) ?? null;
-  const spansThisMonth = visibleItems.filter((item) => {
-    if (item.kind !== "span" || !item.span) return false;
-    const start = item.span.start.slice(0, 7);
-    const end = item.span.end.slice(0, 7);
-    return start <= month && end >= month;
-  });
 
   useEffect(() => {
     try {
@@ -254,11 +248,17 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
 
   const failedVenues = [...new Set(warnings.map((warning) => warning.venue))];
   const agendaDays = daysInMonth(month)
-    .map((date) => ({ date, entries: entriesFor(date), spans: spansOn(visibleItems, date) }))
-    .filter((day) => day.entries.length > 0 || day.spans.length > 0);
+    .map((date) => ({ date, entries: entriesFor(date) }))
+    .filter((day) => day.entries.length > 0);
+  const spansThisMonth = visibleItems
+    .filter((item) => {
+      if (item.kind !== "span" || !item.span) return false;
+      return item.span.start.slice(0, 7) <= month && item.span.end.slice(0, 7) >= month;
+    })
+    .sort((a, b) => placeLine(a.venue, a.room).localeCompare(placeLine(b.venue, b.room), "pt-BR") || a.title.localeCompare(b.title, "pt-BR"));
 
   return (
-    <div className={`mx-auto flex w-full flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12 ${view === "mes" ? "max-w-[90rem]" : "max-w-6xl"}`}>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12">
       <header className="grid gap-6 border-b border-line pb-8 md:grid-cols-[1.4fr_0.8fr] md:items-end">
         <div>
           <p className="font-serif text-sm tracking-[0.28em] text-gold uppercase">Cartaz</p>
@@ -347,29 +347,21 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
         </div>
       </div>
 
-      {view === "agenda" ? (
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between gap-3">
-            <MonthNav month={month} bounds={bounds} onMonth={changeMonth} onToday={() => goTo(today)} plain />
-          </div>
-          <Agenda days={agendaDays} onOpen={setOpenId} />
-        </div>
-      ) : (
-        <div className={view === "dia" ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" : "flex flex-col gap-6"}>
-          <section className="rounded-[28px] border border-line bg-paper p-4 text-paper-ink shadow-[0_30px_80px_var(--shadow)] sm:p-6">
-            <MonthNav month={month} bounds={bounds} onMonth={changeMonth} onToday={() => goTo(today)} />
-            {view === "dia" ? (
-              <>
-                <Weekdays />
-                <div className="grid grid-cols-7 gap-1">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <section className="min-w-0 rounded-[28px] border border-line bg-paper p-4 text-paper-ink shadow-[0_30px_80px_var(--shadow)] sm:p-6">
+          <MonthNav month={month} bounds={bounds} onMonth={changeMonth} onToday={() => goTo(today)} />
+          {view === "agenda" ? (
+            <Agenda days={agendaDays} onOpen={setOpenId} />
+          ) : view === "dia" ? (
+            <>
+              <Weekdays />
+              <div className="grid grid-cols-7 gap-1">
                 {cells.map((date, index) => {
                   if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-day-empty sm:min-h-24" />;
-                  const { soldOnly } = countsFor(date);
+                  const { total, soldOnly } = countsFor(date);
                   const entries = entriesFor(date);
-                  const spans = spansOn(visibleItems, date);
-                  const uniqueTitles = [...new Set([...entries.map(({ item }) => item.title), ...spans.map((item) => item.title)])];
-                  const houseIds = [...new Set([...entries.map(({ item }) => item.venue), ...spans.map((item) => item.venue)])];
-                  const totalShown = entries.length + spans.length;
+                  const uniqueTitles = [...new Set(entries.map(({ item }) => item.title))];
+                  const houseIds = [...new Set(entries.map(({ item }) => item.venue))];
                   const isSelected = date === selected;
                   const isToday = date === today;
                   return (
@@ -378,14 +370,14 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                       type="button"
                       onClick={() => setSelected(date)}
                       aria-pressed={isSelected}
-                      aria-label={`${formatLongDate(date)}, ${totalShown} ${totalShown === 1 ? "atividade" : "atividades"}`}
+                      aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "sessão" : "sessões"}`}
                       className={`flex min-h-16 flex-col rounded-2xl px-1.5 py-1.5 text-left transition sm:min-h-24 sm:px-2 sm:py-2 ${
                         isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day hover:bg-day-hover"
                       } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
                     >
                       <span className="flex items-center justify-between">
                         <span className="text-sm font-medium">{Number(date.slice(-2))}</span>
-                        {totalShown > 0 && (
+                        {total > 0 && (
                           <span className="flex gap-0.5">
                             {houseIds.map((id) => (
                               <span key={id} className={`size-1.5 rounded-full ${soldOnly ? "bg-[#8d2430]" : VENUES[id].dot}`} />
@@ -403,39 +395,35 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                   );
                 })}
               </div>
-              </>
-            ) : (
-              <div className="overflow-x-auto">
-                <div className="min-w-[84rem]">
-                  <Weekdays />
-                  <div className="grid grid-cols-7 gap-1">
-                    {cells.map((date, index) => (
-                      <FullDay
-                        key={date || `empty-${index}`}
-                        date={date}
-                        today={today}
-                        selected={selected}
-                        entries={date ? entriesFor(date) : []}
-                        spans={date ? spansOn(visibleItems, date) : []}
-                        onSelect={setSelected}
-                        onOpen={setOpenId}
-                      />
-                    ))}
-                  </div>
-                </div>
+            </>
+          ) : (
+            <>
+              <Weekdays />
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((date, index) => (
+                  <FullDay
+                    key={date || `empty-${index}`}
+                    date={date}
+                    today={today}
+                    selected={selected}
+                    entries={date ? entriesFor(date) : []}
+                    onSelect={setSelected}
+                    onOpen={setOpenId}
+                  />
+                ))}
               </div>
-            )}
-          </section>
+            </>
+          )}
+        </section>
 
-          {view === "dia" && <section className="flex flex-col gap-4">
-            <div>
-              <p className="text-xs tracking-[0.18em] text-gold uppercase">{houseLabel}</p>
-              <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
-            </div>
-            <DaySchedule entries={dayEntries} spans={spansOn(visibleItems, selected)} onOpen={setOpenId} />
-          </section>}
-        </div>
-      )}
+        <section className="flex min-w-0 flex-col gap-4">
+          <div>
+            <p className="text-xs tracking-[0.18em] text-gold uppercase">{houseLabel}</p>
+            <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
+          </div>
+          <DaySchedule entries={dayEntries} onOpen={setOpenId} />
+        </section>
+      </div>
 
       {spansThisMonth.length > 0 && (
         <section>
@@ -449,7 +437,8 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                   className="w-full rounded-[22px] border border-line bg-card px-4 py-3 text-left hover:border-gold-line"
                 >
                   <span className="font-serif text-lg text-card-ink">{item.title}</span>
-                  <span className="mt-1 block text-sm text-card-muted">
+                  <span className="mt-1 block text-sm text-card-muted">{placeLine(item.venue, item.room)}</span>
+                  <span className="mt-1 block text-xs text-card-faint">
                     {item.span?.label}
                     {item.online ? " · online" : ""}
                   </span>
@@ -535,7 +524,6 @@ function FullDay({
   today,
   selected,
   entries,
-  spans,
   onSelect,
   onOpen,
 }: {
@@ -543,7 +531,6 @@ function FullDay({
   today: string;
   selected: string;
   entries: Screening[];
-  spans: ProgramItem[];
   onSelect: (date: string) => void;
   onOpen: (id: string) => void;
 }) {
@@ -551,7 +538,6 @@ function FullDay({
   const isSelected = date === selected;
   const isToday = date === today;
   const quiet = isSelected ? "text-day-selected-muted" : "text-paper-muted";
-  const total = entries.length + spans.length;
 
   return (
     <div
@@ -563,22 +549,12 @@ function FullDay({
         type="button"
         onClick={() => onSelect(date)}
         aria-pressed={isSelected}
-        aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "atividade" : "atividades"}`}
+        aria-label={`${formatLongDate(date)}, ${entries.length} ${entries.length === 1 ? "sessão" : "sessões"}`}
         className="px-0.5 text-left text-sm font-medium"
       >
         {Number(date.slice(-2))}
       </button>
       <ul className="mt-1 flex flex-col gap-1">
-        {spans.map((item) => (
-          <li key={item.id}>
-            <button type="button" onClick={() => onOpen(item.id)} className="w-full rounded-lg px-1 py-1 text-left hover:opacity-80">
-              <span className={`block text-[10px] tracking-wide uppercase ${quiet}`}>Exposição</span>
-              <span className="mt-0.5 block text-xs leading-snug">{item.title}</span>
-              <span className={`mt-0.5 block text-[11px] leading-snug ${quiet}`}>{placeLine(item.venue, item.room)}</span>
-              {item.span && <span className={`mt-0.5 block text-[11px] leading-snug ${quiet}`}>{spanCue(item.span, date)}</span>}
-            </button>
-          </li>
-        ))}
         {entries.map(({ item, session }) => {
           const closed = session.availability === "soldout" || session.availability === "cancelled";
           const detail = [ticketLine(session), priceLine(session)].filter(Boolean).join(" · ");
@@ -610,17 +586,17 @@ function FullDay({
   );
 }
 
-function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[]; spans: ProgramItem[] }[]; onOpen: (id: string) => void }) {
+function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[] }[]; onOpen: (id: string) => void }) {
   if (days.length === 0) {
     return <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">Nenhuma sessão neste mês.</p>;
   }
   return (
     <div className="flex flex-col gap-8">
-      {days.map(({ date, entries, spans }) => (
+      {days.map(({ date, entries }) => (
         <section key={date}>
           <h2 className="font-serif text-2xl text-ink">{formatLongDate(date)}</h2>
           <div className="mt-3">
-            <DaySchedule entries={entries} spans={spans} onOpen={onOpen} />
+            <DaySchedule entries={entries} onOpen={onOpen} />
           </div>
         </section>
       ))}
@@ -628,49 +604,18 @@ function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[]; 
   );
 }
 
-function DaySchedule({
-  entries,
-  spans = [],
-  onOpen,
-}: {
-  entries: Screening[];
-  spans?: ProgramItem[];
-  onOpen: (id: string) => void;
-}) {
-  if (entries.length === 0 && spans.length === 0) {
+function DaySchedule({ entries, onOpen }: { entries: Screening[]; onOpen: (id: string) => void }) {
+  if (entries.length === 0) {
     return <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">Nenhuma sessão neste dia.</p>;
   }
   return (
     <ul className="flex flex-col gap-3">
-      {spans.map((item) => (
-        <li key={item.id}>
-          <SpanCard item={item} onOpen={() => onOpen(item.id)} />
-        </li>
-      ))}
       {entries.map(({ item, session }) => (
         <li key={`${item.id}-${session.id}`}>
           <SessionCard item={item} session={session} onOpen={() => onOpen(item.id)} />
         </li>
       ))}
     </ul>
-  );
-}
-
-function SpanCard({ item, onOpen }: { item: ProgramItem; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="grid w-full grid-cols-[88px_1fr] gap-3 rounded-[24px] border border-line bg-card p-3 text-left transition hover:bg-card-hover sm:grid-cols-[104px_1fr]"
-    >
-      <Poster src={item.image} alt="" />
-      <span className="min-w-0">
-        <span className="block text-[11px] tracking-wide text-gold uppercase">Exposição</span>
-        <span className="mt-1 block font-serif text-lg text-card-ink">{item.title}</span>
-        <span className="mt-0.5 block text-sm text-card-muted">{placeLine(item.venue, item.room)}</span>
-        {item.span && <span className="mt-2 block text-xs text-card-faint">{item.span.label}</span>}
-      </span>
-    </button>
   );
 }
 
