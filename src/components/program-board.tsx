@@ -12,7 +12,7 @@ import {
   monthLabel,
   shiftMonth,
 } from "@/lib/dates";
-import { screeningsOn } from "@/lib/schedule";
+import { screeningsOn, spanCue, spansOn } from "@/lib/schedule";
 import type { Availability, Program, ProgramItem, Session, VenueId, VenueWarning } from "@/lib/types";
 import { placeLine, VENUE_LIST, VENUES } from "@/lib/venues";
 import { refreshVenue } from "@/app/refresh-venue";
@@ -254,8 +254,8 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
 
   const failedVenues = [...new Set(warnings.map((warning) => warning.venue))];
   const agendaDays = daysInMonth(month)
-    .map((date) => ({ date, entries: entriesFor(date) }))
-    .filter((day) => day.entries.length > 0);
+    .map((date) => ({ date, entries: entriesFor(date), spans: spansOn(visibleItems, date) }))
+    .filter((day) => day.entries.length > 0 || day.spans.length > 0);
 
   return (
     <div className={`mx-auto flex w-full flex-col gap-8 px-4 py-8 sm:px-6 sm:py-12 ${view === "mes" ? "max-w-[90rem]" : "max-w-6xl"}`}>
@@ -264,7 +264,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
           <p className="font-serif text-sm tracking-[0.28em] text-gold uppercase">Cartaz</p>
           <h1 className="mt-3 font-serif text-5xl leading-none text-ink sm:text-7xl">Programação</h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-            CineSesc, Cinemateca, Cine Belas Artes, Espaço Petrobras, CINUSP, Sala São Paulo, Theatro Municipal, Teatro Baccarelli e Theatro São Pedro no mesmo calendário.
+            CineSesc, Cinemateca, Cine Belas Artes, Espaço Petrobras, CINUSP, Sala São Paulo, Theatro Municipal, Teatro Baccarelli, Theatro São Pedro, MASP, MIS e Itaú Cultural no mesmo calendário.
           </p>
         </div>
         <div className="flex flex-col items-start gap-3 md:items-end">
@@ -364,10 +364,12 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                 <div className="grid grid-cols-7 gap-1">
                 {cells.map((date, index) => {
                   if (!date) return <div key={`empty-${index}`} className="min-h-16 rounded-2xl bg-day-empty sm:min-h-24" />;
-                  const { total, soldOnly } = countsFor(date);
+                  const { soldOnly } = countsFor(date);
                   const entries = entriesFor(date);
-                  const uniqueTitles = [...new Set(entries.map(({ item }) => item.title))];
-                  const houseIds = [...new Set(entries.map(({ item }) => item.venue))];
+                  const spans = spansOn(visibleItems, date);
+                  const uniqueTitles = [...new Set([...entries.map(({ item }) => item.title), ...spans.map((item) => item.title)])];
+                  const houseIds = [...new Set([...entries.map(({ item }) => item.venue), ...spans.map((item) => item.venue)])];
+                  const totalShown = entries.length + spans.length;
                   const isSelected = date === selected;
                   const isToday = date === today;
                   return (
@@ -376,14 +378,14 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                       type="button"
                       onClick={() => setSelected(date)}
                       aria-pressed={isSelected}
-                      aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "sessão" : "sessões"}`}
+                      aria-label={`${formatLongDate(date)}, ${totalShown} ${totalShown === 1 ? "atividade" : "atividades"}`}
                       className={`flex min-h-16 flex-col rounded-2xl px-1.5 py-1.5 text-left transition sm:min-h-24 sm:px-2 sm:py-2 ${
                         isSelected ? "bg-day-selected text-day-selected-ink" : "bg-day hover:bg-day-hover"
                       } ${isToday && !isSelected ? "ring-2 ring-[#e25a2a] ring-inset" : ""}`}
                     >
                       <span className="flex items-center justify-between">
                         <span className="text-sm font-medium">{Number(date.slice(-2))}</span>
-                        {total > 0 && (
+                        {totalShown > 0 && (
                           <span className="flex gap-0.5">
                             {houseIds.map((id) => (
                               <span key={id} className={`size-1.5 rounded-full ${soldOnly ? "bg-[#8d2430]" : VENUES[id].dot}`} />
@@ -414,6 +416,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
                         today={today}
                         selected={selected}
                         entries={date ? entriesFor(date) : []}
+                        spans={date ? spansOn(visibleItems, date) : []}
                         onSelect={setSelected}
                         onOpen={setOpenId}
                       />
@@ -429,7 +432,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
               <p className="text-xs tracking-[0.18em] text-gold uppercase">{houseLabel}</p>
               <h2 className="font-serif text-3xl text-ink">{formatLongDate(selected)}</h2>
             </div>
-            <DaySchedule entries={dayEntries} onOpen={setOpenId} />
+            <DaySchedule entries={dayEntries} spans={spansOn(visibleItems, selected)} onOpen={setOpenId} />
           </section>}
         </div>
       )}
@@ -532,6 +535,7 @@ function FullDay({
   today,
   selected,
   entries,
+  spans,
   onSelect,
   onOpen,
 }: {
@@ -539,6 +543,7 @@ function FullDay({
   today: string;
   selected: string;
   entries: Screening[];
+  spans: ProgramItem[];
   onSelect: (date: string) => void;
   onOpen: (id: string) => void;
 }) {
@@ -546,6 +551,7 @@ function FullDay({
   const isSelected = date === selected;
   const isToday = date === today;
   const quiet = isSelected ? "text-day-selected-muted" : "text-paper-muted";
+  const total = entries.length + spans.length;
 
   return (
     <div
@@ -557,12 +563,22 @@ function FullDay({
         type="button"
         onClick={() => onSelect(date)}
         aria-pressed={isSelected}
-        aria-label={`${formatLongDate(date)}, ${entries.length} ${entries.length === 1 ? "sessão" : "sessões"}`}
+        aria-label={`${formatLongDate(date)}, ${total} ${total === 1 ? "atividade" : "atividades"}`}
         className="px-0.5 text-left text-sm font-medium"
       >
         {Number(date.slice(-2))}
       </button>
       <ul className="mt-1 flex flex-col gap-1">
+        {spans.map((item) => (
+          <li key={item.id}>
+            <button type="button" onClick={() => onOpen(item.id)} className="w-full rounded-lg px-1 py-1 text-left hover:opacity-80">
+              <span className={`block text-[10px] tracking-wide uppercase ${quiet}`}>Exposição</span>
+              <span className="mt-0.5 block text-xs leading-snug">{item.title}</span>
+              <span className={`mt-0.5 block text-[11px] leading-snug ${quiet}`}>{placeLine(item.venue, item.room)}</span>
+              {item.span && <span className={`mt-0.5 block text-[11px] leading-snug ${quiet}`}>{spanCue(item.span, date)}</span>}
+            </button>
+          </li>
+        ))}
         {entries.map(({ item, session }) => {
           const closed = session.availability === "soldout" || session.availability === "cancelled";
           const detail = [ticketLine(session), priceLine(session)].filter(Boolean).join(" · ");
@@ -594,17 +610,17 @@ function FullDay({
   );
 }
 
-function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[] }[]; onOpen: (id: string) => void }) {
+function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[]; spans: ProgramItem[] }[]; onOpen: (id: string) => void }) {
   if (days.length === 0) {
     return <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">Nenhuma sessão neste mês.</p>;
   }
   return (
     <div className="flex flex-col gap-8">
-      {days.map(({ date, entries }) => (
+      {days.map(({ date, entries, spans }) => (
         <section key={date}>
           <h2 className="font-serif text-2xl text-ink">{formatLongDate(date)}</h2>
           <div className="mt-3">
-            <DaySchedule entries={entries} onOpen={onOpen} />
+            <DaySchedule entries={entries} spans={spans} onOpen={onOpen} />
           </div>
         </section>
       ))}
@@ -612,18 +628,49 @@ function Agenda({ days, onOpen }: { days: { date: string; entries: Screening[] }
   );
 }
 
-function DaySchedule({ entries, onOpen }: { entries: Screening[]; onOpen: (id: string) => void }) {
-  if (entries.length === 0) {
+function DaySchedule({
+  entries,
+  spans = [],
+  onOpen,
+}: {
+  entries: Screening[];
+  spans?: ProgramItem[];
+  onOpen: (id: string) => void;
+}) {
+  if (entries.length === 0 && spans.length === 0) {
     return <p className="rounded-[28px] border border-dashed border-line px-5 py-10 text-muted">Nenhuma sessão neste dia.</p>;
   }
   return (
     <ul className="flex flex-col gap-3">
+      {spans.map((item) => (
+        <li key={item.id}>
+          <SpanCard item={item} onOpen={() => onOpen(item.id)} />
+        </li>
+      ))}
       {entries.map(({ item, session }) => (
         <li key={`${item.id}-${session.id}`}>
           <SessionCard item={item} session={session} onOpen={() => onOpen(item.id)} />
         </li>
       ))}
     </ul>
+  );
+}
+
+function SpanCard({ item, onOpen }: { item: ProgramItem; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="grid w-full grid-cols-[88px_1fr] gap-3 rounded-[24px] border border-line bg-card p-3 text-left transition hover:bg-card-hover sm:grid-cols-[104px_1fr]"
+    >
+      <Poster src={item.image} alt="" />
+      <span className="min-w-0">
+        <span className="block text-[11px] tracking-wide text-gold uppercase">Exposição</span>
+        <span className="mt-1 block font-serif text-lg text-card-ink">{item.title}</span>
+        <span className="mt-0.5 block text-sm text-card-muted">{placeLine(item.venue, item.room)}</span>
+        {item.span && <span className="mt-2 block text-xs text-card-faint">{item.span.label}</span>}
+      </span>
+    </button>
   );
 }
 
@@ -755,7 +802,9 @@ function FilmSheet({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
-          <p className="text-xs tracking-[0.18em] text-gold-deep uppercase">{item.kind === "span" ? "No período" : "Todas as sessões"}</p>
+          <p className="text-xs tracking-[0.18em] text-gold-deep uppercase">
+            {item.tags.includes("Exposição") ? "Exposição" : item.kind === "span" ? "No período" : "Todas as sessões"}
+          </p>
           <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-sm" aria-label="Fechar">
             Fechar
           </button>
@@ -769,6 +818,7 @@ function FilmSheet({
             {item.subtitle && <p className="mt-2 text-paper-muted">{item.subtitle}</p>}
             <p className="mt-3 text-sm text-paper-muted">{placeLine(item.venue, item.room)}</p>
             <p className="mt-1 text-sm text-paper-muted">{VENUES[item.venue].address}</p>
+            {VENUES[item.venue].hours && <p className="mt-1 text-sm text-paper-muted">{VENUES[item.venue].hours}</p>}
             {[item.age, ...item.tags].filter(Boolean).length > 0 && (
               <p className="mt-3 text-sm text-paper-muted">{[item.age, ...item.tags].filter(Boolean).join(" · ")}</p>
             )}

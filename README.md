@@ -1,6 +1,6 @@
 # Cartaz
 
-A calendar of São Paulo cultural programs. Nine houses share one month view, with times, rooms, prices, and ticket links when the house publishes them.
+A calendar of São Paulo cultural programs. Twelve houses share one month view, with showtimes and, for the museums, the exhibitions open that day.
 
 Live site: [cartaz-mucadoo.vercel.app](https://cartaz-mucadoo.vercel.app/)
 
@@ -19,12 +19,15 @@ Dates and times use `America/Sao_Paulo`. There is no database. Each load reads t
 | [Theatro Municipal](https://theatromunicipal.org.br/programacao/) | The published program |
 | [Teatro Baccarelli](https://baccarelli.org.br/nucleos/teatro-baccarelli/#em-cartaz) | What is em cartaz |
 | [Theatro São Pedro](https://theatrosaopedro.art.br/programacao/) | The published program |
+| [MASP](https://masp.org.br/exposicoes) | Exhibitions on view, on every day they are open |
+| [MIS](https://mis-sp.org.br/exposicao/) | Exhibitions on view, on every day they are open |
+| [Itaú Cultural](https://www.itaucultural.org.br/agenda) | Exhibitions and ocupações, on every day they are open |
 
 ## Using the calendar
 
 House chips can stay on together. **Todas** shows every house. Click a selected house again to remove it.
 
-**Dia** keeps the month beside the selected day. **Mês** fills each day of the month with every session: time, title, house, and price or tickets when the house publishes them. **Agenda** lists the month by date. The choice is kept in the browser.
+**Dia** keeps the month beside the selected day. **Mês** fills each day with every session and every exhibition open that day. **Agenda** lists the month by date. The choice is kept in the browser.
 
 **Tudo** shows every session. **Com lugar** keeps sessions that are still on sale, sold only at the box office, or free.
 

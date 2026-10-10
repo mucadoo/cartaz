@@ -7,7 +7,10 @@ export type VenueId =
   | "sala-sp"
   | "municipal"
   | "baccarelli"
-  | "sao-pedro";
+  | "sao-pedro"
+  | "masp"
+  | "mis"
+  | "itau";
 
 export type Availability = "available" | "boxoffice" | "soldout" | "cancelled" | "free";
 

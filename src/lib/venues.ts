@@ -7,6 +7,7 @@ export type Venue = {
   href: string;
   pageLabel: string;
   dot: string;
+  hours?: string;
 };
 
 export const VENUES: Record<VenueId, Venue> = {
@@ -82,6 +83,33 @@ export const VENUES: Record<VenueId, Venue> = {
     pageLabel: "Página do São Pedro",
     dot: "bg-[#8f4d2a]",
   },
+  masp: {
+    id: "masp",
+    name: "MASP",
+    address: "Avenida Paulista, 1578 · Bela Vista",
+    href: "https://masp.org.br/exposicoes",
+    pageLabel: "Página do MASP",
+    dot: "bg-[#d0121a]",
+    hours: "Terça 10h–20h, grátis. Quarta e quinta 10h–18h. Sexta 10h–21h, grátis a partir das 18h. Sábado e domingo 10h–18h. Fechado segunda.",
+  },
+  mis: {
+    id: "mis",
+    name: "MIS",
+    address: "Avenida Europa, 158 · Jardim Europa",
+    href: "https://mis-sp.org.br/exposicao/",
+    pageLabel: "Página do MIS",
+    dot: "bg-[#6b4c9a]",
+    hours: "Terça a sexta, 10h–19h. Sábado, 10h–20h. Domingo e feriado, 10h–18h.",
+  },
+  itau: {
+    id: "itau",
+    name: "Itaú Cultural",
+    address: "Avenida Paulista, 149 · Bela Vista",
+    href: "https://www.itaucultural.org.br/agenda",
+    pageLabel: "Página do Itaú Cultural",
+    dot: "bg-[#e07a2f]",
+    hours: "Terça a sábado, 11h–20h. Domingo e feriado, 11h–19h. Entrada gratuita.",
+  },
 };
 
 export const VENUE_LIST: Venue[] = [
@@ -94,6 +122,9 @@ export const VENUE_LIST: Venue[] = [
   VENUES.municipal,
   VENUES.baccarelli,
   VENUES["sao-pedro"],
+  VENUES.masp,
+  VENUES.mis,
+  VENUES.itau,
 ];
 
 export function placeLine(venue: VenueId, room: string | null): string {

@@ -16,7 +16,7 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: "Cartaz — Programação",
   description:
-    "Calendário das sessões do CineSesc, da Cinemateca, do Cine Belas Artes, do Espaço Petrobras, do CINUSP, da Sala São Paulo, do Theatro Municipal, do Teatro Baccarelli e do Theatro São Pedro.",
+    "Calendário das sessões do CineSesc, da Cinemateca, do Cine Belas Artes, do Espaço Petrobras, do CINUSP, da Sala São Paulo, do Theatro Municipal, do Teatro Baccarelli, do Theatro São Pedro, do MASP, do MIS e do Itaú Cultural.",
 };
 
 export default function RootLayout({
