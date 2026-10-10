@@ -6,7 +6,7 @@ import { loadSaoPedro } from "@/lib/sao-pedro";
 import { loadCinemateca } from "@/lib/cinemateca";
 import { loadMunicipal } from "@/lib/municipal";
 import { loadSala } from "@/lib/sala";
-import { loadItau, loadMasp, loadMis } from "@/lib/exhibitions";
+import { loadAfro, loadCcbb, loadItau, loadMam, loadMasp, loadMis, loadPinacoteca, loadTomie } from "@/lib/exhibitions";
 import { loadCineSesc } from "@/lib/sesc";
 import { saoPauloToday } from "@/lib/dates";
 import { TICKET_REVALIDATE_SECONDS, withRevalidate } from "@/lib/http";
@@ -25,6 +25,11 @@ const FAILED: Record<VenueId, string> = {
   masp: "A programação do MASP não respondeu.",
   mis: "A programação do MIS não respondeu.",
   itau: "A programação do Itaú Cultural não respondeu.",
+  pinacoteca: "A programação da Pinacoteca não respondeu.",
+  mam: "A programação do MAM não respondeu.",
+  tomie: "A programação do Instituto Tomie Ohtake não respondeu.",
+  ccbb: "A programação do CCBB não respondeu.",
+  afro: "A programação do Museu Afro Brasil não respondeu.",
 };
 
 const SOURCES: Record<VenueId, (now: Date) => Promise<{ items: ProgramItem[]; warnings: string[] }>> = {
@@ -40,6 +45,11 @@ const SOURCES: Record<VenueId, (now: Date) => Promise<{ items: ProgramItem[]; wa
   masp: loadMasp,
   mis: loadMis,
   itau: loadItau,
+  pinacoteca: loadPinacoteca,
+  mam: loadMam,
+  tomie: loadTomie,
+  ccbb: loadCcbb,
+  afro: loadAfro,
 };
 
 export const VENUE_IDS = Object.keys(SOURCES) as VenueId[];

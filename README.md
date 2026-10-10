@@ -1,6 +1,6 @@
 # Cartaz
 
-A calendar of São Paulo cultural programs. Twelve houses share one month view, with showtimes and, for the museums, the exhibitions open that day.
+A calendar of São Paulo cultural programs. Seventeen houses share one month view, with showtimes and, for the museums, the exhibitions open that day.
 
 Live site: [cartaz-mucadoo.vercel.app](https://cartaz-mucadoo.vercel.app/)
 
@@ -22,6 +22,11 @@ Dates and times use `America/Sao_Paulo`. There is no database. Each load reads t
 | [MASP](https://masp.org.br/exposicoes) | Exhibitions on view, on every day they are open |
 | [MIS](https://mis-sp.org.br/exposicao/) | Exhibitions on view, on every day they are open |
 | [Itaú Cultural](https://www.itaucultural.org.br/agenda) | Exhibitions and ocupações, on every day they are open |
+| [Pinacoteca](https://pinacoteca.org.br/programacao/tipo/exposicoes/) | Exhibitions at Pina Luz, Pina Estação, and Pina Contemporânea |
+| [MAM](https://mam.org.br/exposicoes/em-cartaz/) | Exhibitions on view at Ibirapuera |
+| [Instituto Tomie Ohtake](https://www.institutotomieohtake.org.br/programacao/exposicoes) | Exhibitions at the institute and at the Casa-ateliê |
+| [CCBB](https://ccbb.com.br/sao-paulo/programacao/) | Exhibitions at the São Paulo center |
+| [Museu Afro Brasil](https://museuafrobrasil.org.br/exposicoes/) | Temporary exhibitions on view |
 
 ## Using the calendar
 

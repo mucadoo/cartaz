@@ -10,7 +10,12 @@ export type VenueId =
   | "sao-pedro"
   | "masp"
   | "mis"
-  | "itau";
+  | "itau"
+  | "pinacoteca"
+  | "mam"
+  | "tomie"
+  | "ccbb"
+  | "afro";
 
 export type Availability = "available" | "boxoffice" | "soldout" | "cancelled" | "free";
 

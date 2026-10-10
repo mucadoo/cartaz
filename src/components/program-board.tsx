@@ -264,7 +264,7 @@ export function ProgramBoard({ program, today, selectedDate }: { program: Progra
           <p className="font-serif text-sm tracking-[0.28em] text-gold uppercase">Cartaz</p>
           <h1 className="mt-3 font-serif text-5xl leading-none text-ink sm:text-7xl">Programação</h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-            CineSesc, Cinemateca, Cine Belas Artes, Espaço Petrobras, CINUSP, Sala São Paulo, Theatro Municipal, Teatro Baccarelli, Theatro São Pedro, MASP, MIS e Itaú Cultural no mesmo calendário.
+            CineSesc, Cinemateca, Cine Belas Artes, Espaço Petrobras, CINUSP, Sala São Paulo, Theatro Municipal, Teatro Baccarelli, Theatro São Pedro, MASP, MIS, Itaú Cultural, Pinacoteca, MAM, Instituto Tomie Ohtake, CCBB e Museu Afro Brasil no mesmo calendário.
           </p>
         </div>
         <div className="flex flex-col items-start gap-3 md:items-end">
